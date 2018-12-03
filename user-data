@@ -1,0 +1,36 @@
+#cloud-config
+preserve_hostname: False
+hostname: $domain
+fqdn: $domain.cluster
+
+# Configure password
+password: rootroot
+chpasswd: { expire: False }
+ssh_pwauth: True
+ssh_authorized_keys:
+  - $ssh-key
+
+# Write network configuration file
+write_files:
+  - path: /etc/netplan/51-cloud-init.yaml
+    content: |
+      network:
+        version: 2
+        ethernets:
+          ens4:
+            addresses:
+              - $private-address/24
+            gateway4: 192.168.42.1
+    owner: root:root
+    permissions: '0644'
+
+# Configure where output will go
+output:
+  all: ">> /var/log/cloud-init.log"
+
+# Set timezone for VM
+timezone: Europe/Athens
+
+# Apply private nework configuration
+runcmd:
+  - netplan apply
