@@ -1,10 +1,13 @@
 if [[ "$@" == "--hard" ]]; then
-    virsh destroy --domain master
-    virsh undefine master
-    virsh destroy --domain node
-    virsh undefine node
-    rm /var/lib/libvirt/images/master-vol.img
-    rm /var/lib/libvirt/images/node-vol.img
+    virsh destroy --domain controller
+    virsh undefine controller
+    virsh destroy --domain worker-0
+    virsh undefine worker-0
+    virsh destroy --domain worker-1
+    virsh undefine worker-1
+    rm /var/lib/libvirt/images/controller-vol.img
+    rm /var/lib/libvirt/images/worker0-vol.img
+    rm /var/lib/libvirt/images/worker1-vol.img
 
     virsh net-destroy internal-net
     rm internal-net
@@ -13,10 +16,12 @@ if [[ "$@" == "--hard" ]]; then
 
     rm /var/lib/libvirt/images/bionic-server-cloudimg-amd64.img
 
-    rm /var/lib/libvirt/images/config-master.iso
-    rm /var/lib/libvirt/images/config-node.iso
+    rm /var/lib/libvirt/images/config-controller.iso
+    rm /var/lib/libvirt/images/config-worker0.iso
+    rm /var/lib/libvirt/images/config-worker1.iso
 fi
 
-rm -rf master-config
-rm -rf node-config
+rm -rf controller-config
+rm -rf worker0-config
+rm -rf worker1-config
 rm *.iso

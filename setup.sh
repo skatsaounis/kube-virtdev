@@ -1,3 +1,6 @@
+# Setting locale
+export LC_ALL='en_US.UTF-8'
+
 # Install prerequisites
 apt-get install -y \
   genisoimage qemu-kvm libvirt-bin virtinst
@@ -8,35 +11,49 @@ ssh_key=$(cat ~/.ssh/dummy_key.pub)
 echo $ssh_key
 
 # Create config isos
-master_ip=192.168.42.2
-mkdir master-config
-sed 's/\$domain/master/g' meta-data > master-config/meta-data
-sed 's/\$domain/master/g' user-data > master-config/user-data
-sed -i "s|\$ssh-key|$ssh_key|g" master-config/user-data
-sed -i "s|\$private-address|$master_ip|g" master-config/user-data
-genisoimage -o config-master.iso -V cidata -r -J master-config/meta-data master-config/user-data
-cp config-master.iso /var/lib/libvirt/images
-chown qemu:qemu /var/lib/libvirt/images/config-master.iso
+controller_ip=192.168.42.2
+mkdir controller-config
+sed 's/\$domain/controller/g' meta-data > controller-config/meta-data
+sed 's/\$domain/controller/g' user-data > controller-config/user-data
+sed -i "s|\$ssh-key|$ssh_key|g" controller-config/user-data
+sed -i "s|\$private-address|$controller_ip|g" controller-config/user-data
+genisoimage -o config-controller.iso -V cidata -r -J controller-config/meta-data controller-config/user-data
+cp config-controller.iso /var/lib/libvirt/images
+#chown qemu:qemu /var/lib/libvirt/images/config-controller.iso
 
-node_ip=192.168.42.3
-mkdir node-config
-sed 's/\$domain/node/g' meta-data > node-config/meta-data
-sed 's/\$domain/node/g' user-data > node-config/user-data
-sed -i "s|\$ssh-key|$ssh_key|g" node-config/user-data
-sed -i "s|\$private-address|$node_ip|g" node-config/user-data
-genisoimage -o config-node.iso -V cidata -r -J node-config/meta-data node-config/user-data
-cp config-node.iso /var/lib/libvirt/images
-chown qemu:qemu /var/lib/libvirt/images/config-node.iso
+worker0_ip=192.168.42.3
+mkdir worker0-config
+sed 's/\$domain/worker-0/g' meta-data > worker0-config/meta-data
+sed 's/\$domain/worker-0/g' user-data > worker0-config/user-data
+sed -i "s|\$ssh-key|$ssh_key|g" worker0-config/user-data
+sed -i "s|\$private-address|$worker0_ip|g" worker0-config/user-data
+genisoimage -o config-worker0.iso -V cidata -r -J worker0-config/meta-data worker0-config/user-data
+cp config-worker0.iso /var/lib/libvirt/images
+#chown qemu:qemu /var/lib/libvirt/images/config-worker0.iso
+
+worker1_ip=192.168.42.4
+mkdir worker1-config
+sed 's/\$domain/worker-1/g' meta-data > worker1-config/meta-data
+sed 's/\$domain/worker-1/g' user-data > worker1-config/user-data
+sed -i "s|\$ssh-key|$ssh_key|g" worker1-config/user-data
+sed -i "s|\$private-address|$worker1_ip|g" worker1-config/user-data
+genisoimage -o config-worker1.iso -V cidata -r -J worker1-config/meta-data worker1-config/user-data
+cp config-worker1.iso /var/lib/libvirt/images
+#chown qemu:qemu /var/lib/libvirt/images/config-worker1.iso
 
 # Download Bionic image
 wget -nc https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img
 
 # Create libvirt volumes
 cp bionic-server-cloudimg-amd64.img /var/lib/libvirt/images/
-chown qemu:qemu /var/lib/libvirt/images/bionic-server-cloudimg-amd64.img
+#chown qemu:qemu /var/lib/libvirt/images/bionic-server-cloudimg-amd64.img
 virsh pool-refresh default
-virsh vol-clone --pool default bionic-server-cloudimg-amd64.img master-vol.img
-virsh vol-clone --pool default bionic-server-cloudimg-amd64.img node-vol.img
+virsh vol-clone --pool default bionic-server-cloudimg-amd64.img controller-vol.img
+qemu-img resize /var/lib/libvirt/images/controller-vol.img +40G
+virsh vol-clone --pool default bionic-server-cloudimg-amd64.img worker0-vol.img
+qemu-img resize /var/lib/libvirt/images/worker0-vol.img +40G
+virsh vol-clone --pool default bionic-server-cloudimg-amd64.img worker1-vol.img
+qemu-img resize /var/lib/libvirt/images/worker1-vol.img +40G
 virsh pool-refresh default
 
 # Create libvirt network
@@ -51,14 +68,29 @@ EOF
 virsh net-create internal-net
 
 # Create libvirt Domains
-virt-install -n master --vcpus 4 -r 8192 \
+virt-install -n controller --vcpus 4 -r 8192 \
   --network network:default --network bridge=internal-net,model=virtio \
-  --disk vol=default/master-vol.img --import \
-  --disk path=/var/lib/libvirt/images/config-master.iso,device=cdrom \
+  --disk vol=default/controller-vol.img --import \
+  --disk path=/var/lib/libvirt/images/config-controller.iso,device=cdrom \
   --noautoconsole --os-variant=ubuntu16.04
 
-virt-install -n node --vcpus 4 -r 8192 \
+virt-install -n worker-0 --vcpus 4 -r 8192 \
   --network network:default --network bridge=internal-net,model=virtio \
-  --disk vol=default/node-vol.img --import \
-  --disk path=/var/lib/libvirt/images/config-node.iso,device=cdrom \
+  --disk vol=default/worker0-vol.img --import \
+  --disk path=/var/lib/libvirt/images/config-worker0.iso,device=cdrom \
   --noautoconsole --os-variant=ubuntu16.04
+
+virt-install -n worker-1 --vcpus 4 -r 8192 \
+  --network network:default --network bridge=internal-net,model=virtio \
+  --disk vol=default/worker1-vol.img --import \
+  --disk path=/var/lib/libvirt/images/config-worker1.iso,device=cdrom \
+  --noautoconsole --os-variant=ubuntu16.04
+
+sleep 10
+
+controller_pub_ip=$(virsh net-dhcp-leases default | grep controller | awk '{print $5}' | cut -f1 -d"/")
+echo "controller ip: $controller_pub_ip"
+worker0_pub_ip=$(virsh net-dhcp-leases default | grep worker-0 | awk '{print $5}' | cut -f1 -d"/")
+echo "worker-0 ip: $worker0_pub_ip"
+worker1_pub_ip=$(virsh net-dhcp-leases default | grep worker-1 | awk '{print $5}' | cut -f1 -d"/")
+echo "worker-1 ip: $worker1_pub_ip"
